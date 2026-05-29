@@ -1,5 +1,5 @@
 ARG TARGETPLATFORM
-FROM --platform=linux/arm64 archlinuxarm/archlinuxarm:latest AS customizer
+FROM menci/archlinuxarm:base AS customizer
 
 #######################################################
 ARG BUILD_KDE
