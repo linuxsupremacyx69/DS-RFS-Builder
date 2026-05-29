@@ -11,6 +11,9 @@ ARG ENABLE_zip_ARG
 ARG ENABLE_docker_ARG
 ######################################################
 
+# Disable pacman sandbox to fix 'alpm' user and Landlock crashes in Docker/QEMU
+RUN sed -i '/\[options\]/a DisableSandbox' /etc/pacman.conf
+
 # Initialize pacman keys and upgrade system
 RUN pacman-key --init && \
     pacman-key --populate archlinuxarm && \
