@@ -1,5 +1,5 @@
 ARG TARGETPLATFORM
-FROM lopsided/archlinux:latest AS customizer
+FROM --platform=linux/arm64 archlinuxarm/archlinuxarm:latest AS customizer
 
 #######################################################
 ARG BUILD_KDE
@@ -115,6 +115,20 @@ HandleHibernateKey=ignore
 HandlePowerKeyLongPress=ignore
 HandlePowerKeyLongPressHibernate=ignore
 EOF
+
+# --- Aggressive Size Reduction Cleanup ---
+# 1. Remove orphaned dependencies
+# 2. Clear all pacman package caches
+# 3. Delete documentation, man pages, and unnecessary logs
+RUN pacman -Rns --noconfirm $(pacman -Qtdq) || true && \
+    pacman -Scc --noconfirm && \
+    rm -rf /usr/share/doc/* \
+           /usr/share/man/* \
+           /usr/share/info/* \
+           /var/cache/pacman/pkg/* \
+           /var/log/* \
+           /tmp/* \
+           /var/tmp/*
 
 # Phase 2: Export root filesystem to scratch
 FROM scratch AS export
