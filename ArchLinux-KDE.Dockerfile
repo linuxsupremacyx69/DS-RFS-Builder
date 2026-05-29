@@ -1,5 +1,5 @@
 ARG TARGETPLATFORM
-FROM agners/archlinuxarm-aarch64 AS customizer
+FROM lopsided/archlinux:latest AS customizer
 
 #######################################################
 ARG BUILD_KDE
