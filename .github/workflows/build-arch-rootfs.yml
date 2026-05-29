@@ -1,0 +1,125 @@
+name: ArchLinux KDE RootFS Builder
+
+on:
+  workflow_dispatch:
+    inputs:
+      variant:
+        description: 'Build Variant (e.g., base, custom)'
+        required: true
+        default: 'custom'
+      build_kde:
+        description: 'KDE Type (none, min, conc)'
+        required: true
+        default: 'min'
+        type: choice
+        options:
+          - none
+          - min
+          - conc
+      pulseaudio:
+        description: 'PulseAudio Mode (socket, tcp, none)'
+        required: true
+        default: 'socket'
+        type: choice
+        options:
+          - socket
+          - tcp
+          - none
+      enable_binfmt:
+        description: 'Enable Cross-Architecture (binfmt)'
+        type: boolean
+        default: false
+      enable_mesa:
+        description: 'Enable Mesa Drivers'
+        type: boolean
+        default: false
+      enable_dev_tools:
+        description: 'Enable Developer Tools'
+        type: boolean
+        default: false
+      enable_zip:
+        description: 'Enable Compression Tools'
+        type: boolean
+        default: true
+      enable_docker:
+        description: 'Enable Docker'
+        type: boolean
+        default: false
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU for ARM64
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Execute Build Engine
+        id: build
+        run: |
+          chmod +x ./build.sh
+          ./build.sh \
+            -i ArchLinux-KDE.Dockerfile \
+            -v "${{ github.event.inputs.variant }}" \
+            -K "${{ github.event.inputs.build_kde }}" \
+            -P "${{ github.event.inputs.pulseaudio }}" \
+            -a "${{ github.event.inputs.enable_binfmt }}" \
+            -c "${{ github.event.inputs.enable_mesa }}" \
+            -d "${{ github.event.inputs.enable_dev_tools }}" \
+            -e "${{ github.event.inputs.enable_zip }}" \
+            -f "${{ github.event.inputs.enable_docker }}"
+
+          # Capture the output filename for the release step
+          FILENAME=$(ls *.tar.xz | head -n 1)
+          echo "artifact_path=$FILENAME" >> $GITHUB_OUTPUT
+          echo "artifact_name=$FILENAME" >> $GITHUB_OUTPUT
+
+      - name: Generate Changelog
+        id: changelog
+        run: |
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "### ArchLinux ARM KDE Build" >> $GITHUB_OUTPUT
+          echo "- **Variant:** ${{ github.event.inputs.variant }}" >> $GITHUB_OUTPUT
+          echo "- **KDE Type:** ${{ github.event.inputs.build_kde }}" >> $GITHUB_OUTPUT
+          echo "- **Developer Tools:** ${{ github.event.inputs.enable_dev_tools }}" >> $GITHUB_OUTPUT
+          echo "- **Mesa Drivers:** ${{ github.event.inputs.enable_mesa }}" >> $GITHUB_OUTPUT
+          echo "- **Commit:** ${{ github.sha }}" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: build-${{ github.run_id }}
+          name: ArchLinux KDE RootFS - ${{ github.run_id }}
+          body: ${{ steps.changelog.outputs.changelog }}
+          files: ${{ steps.build.outputs.artifact_path }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Send Telegram Notification
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_TO }}
+          token: ${{ secrets.TELEGRAM_TOKEN }}
+          format: markdown
+          message: |
+            🚀 *New ArchLinux ARM Build Completed!*
+            
+            📦 *Artifact:* `${{ steps.build.outputs.artifact_name }}`
+            ⚙️ *Variant:* `${{ github.event.inputs.variant }}`
+            🖥 *KDE Environment:* `${{ github.event.inputs.build_kde }}`
+            
+            🔗 *Release Link:* [Download Here](https://github.com/${{ github.repository }}/releases/tag/build-${{ github.run_id }})
+            
+            📝 *Changelog:*
+            - Build ID: `${{ github.run_id }}`
+            - Workflow triggered via Actions.
+            - QEMU/Binfmt execution successful.
