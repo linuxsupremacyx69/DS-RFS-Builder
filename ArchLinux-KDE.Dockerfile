@@ -88,10 +88,7 @@ RUN if [ "$PulseAudio" = "socket" ]; then \
 RUN echo 'export XDG_RUNTIME_DIR=/run/user/$(id -u)' >> /home/notshroud/.bashrc && \
     if [ "$BUILD_KDE" = "min" ] || [ "$BUILD_KDE" = "conc" ] ; then \
         mkdir -p /home/notshroud/.config && \
-        cat <<'EOF' > /home/notshroud/.config/kwinrc
-[Compositing]
-Enabled=false
-EOF
+        printf "[Compositing]\nEnabled=false\n" > /home/notshroud/.config/kwinrc; \
     fi && \
     chown -R notshroud:notshroud /home/notshroud
 
