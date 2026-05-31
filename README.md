@@ -6,11 +6,11 @@ When triggering the workflow, you can freely configure the target system version
 
 ## Features
 
-- **Multi-distro support**: Quickly build RootFS for `Debian-13`, `Ubuntu-24`, `Ubuntu-25`, and `Arch Linux`.
+- **Multi-distro support**: Quickly build RootFS for `ArchLinux`, and `UbuntuOS-25`.
 - **On-demand KDE desktop customization**: Multiple KDE desktop scales are available, and you can launch the graphical environment quickly with the `on` script:
-  - `conc`: compact edition
-  - `min`: minimal build
-  - `none`: command-line only (desktop environment not installed)
+  - `Full`: compact edition
+  - `Min`: minimal build
+  - `None`: command-line only (desktop environment not installed)
 
 - **Flexible audio forwarding (PulseAudio)**:
   - Supports both `tcp` (network forwarding) and `socket` (Unix socket) modes.
