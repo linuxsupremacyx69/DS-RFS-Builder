@@ -95,7 +95,8 @@ jobs:
         run: |
           TARGET="${{ github.event.inputs.build_target }}"
           
-          if [ "$TARGET" = "all" ]; then
+          # Updated to catch "All Distro" or "all"
+          if [ "$TARGET" = "All Distro" ] || [ "$TARGET" = "all" ]; then
             TEMPLATES=$(ls *.Dockerfile | sed 's/\.Dockerfile//' | jq -R -s -c 'split("\n")[:-1]')
           else
             TEMPLATES=$(jq -n -c --arg t "$TARGET" '[$t]')
