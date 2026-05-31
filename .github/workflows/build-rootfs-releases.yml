@@ -1,0 +1,246 @@
+name: Compile And Publish Droidspaces RootFS
+
+on:
+  workflow_dispatch: 
+    inputs:
+      build_target:
+        description: 'Select The Distribution To Build'
+        required: True
+        type: choice
+        default: 'ArchLinux-KDE-Plasma'
+        options:                           
+          - 'ArchLinux-KDE-Plasma'  
+          - 'Ubuntu-25-KDE-Plasma'
+          - 'All Distro'
+      build_KDE:
+        description: 'KDE-Plasma Desktop Selection (Full / Min / CLI Build Has No Desktop Environment)'
+        required: True
+        type: choice
+        default: 'Min'
+        options: 
+          - 'Full'
+          - 'Min'
+          - 'CLI'
+      PulseAudio:
+        description: 'PulseAudio Audio Forwarding'
+        required: True 
+        type: choice
+        default: 'TCP'
+        options: 
+          - 'Socket'
+          - 'TCP'
+          - 'None'
+      enable_zh_tz:
+        description: 'Use English Language And Change Timezone'
+        required: True 
+        type: boolean
+        default: True 
+      enable_mesa:
+        description: 'Enable Qualcomm Snapdragon GPU Support'
+        required: True 
+        type: boolean
+        default: True 
+      enable_tmoe:
+        description: 'Integration TMOE'
+        required: True 
+        type: boolean
+        default: True 
+      enable_srf:
+        description: 'Enable Input Method Fcitx5 Support'
+        required: True
+        type: boolean
+        default: False
+      enable_binfmt:
+        description: 'Enable Cross-Architecture Support'
+        required: True
+        type: boolean
+        default: False
+      enable_yj:
+        description: 'Enable Container Recognition Of Partial Hardware & Network Support'
+        required: True
+        type: boolean
+        default: False
+      enable_kfgj:
+        description: 'Development Tools Integration'
+        required: True
+        type: boolean
+        default: False
+      enable_zip:
+        description: 'Compression Tools Integration'
+        required: True
+        type: boolean
+        default: True
+      enable_docker:
+        description: 'Docker Integration'
+        required: True
+        type: boolean
+        default: False    
+
+jobs:
+  # --------------------------------------------------------
+  # Phase 1: setup (Environment preparation and variable generation)
+  # --------------------------------------------------------
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      templates: ${{ steps.find-templates.outputs.templates }}
+      build_id: ${{ steps.prep.outputs.build_id }}
+      build_date: ${{ steps.prep.outputs.build_date }}
+    steps:
+      - name: Checkout code repository
+        uses: actions/checkout@v4
+
+      - name: Parse user's build selection
+        id: find-templates
+        run: |
+          TARGET="${{ github.event.inputs.build_target }}"
+          
+          if [ "$TARGET" = "all" ]; then
+            TEMPLATES=$(ls *.Dockerfile | sed 's/\.Dockerfile//' | jq -R -s -c 'split("\n")[:-1]')
+          else
+            TEMPLATES=$(jq -n -c --arg t "$TARGET" '[$t]')
+          fi
+          
+          echo "templates=$TEMPLATES" >> $GITHUB_OUTPUT
+          echo "Finally decided build matrix: $TEMPLATES"
+
+      - name: Prepare build metadata
+        id: prep
+        run: |
+          BUILD_DATE=$(date +'%Y-%m-%d %H:%M:%S')
+          BUILD_ID="v$(date +'%Y%m%d-%H%M%S')"
+          echo "BUILD_DATE=$BUILD_DATE" >> $GITHUB_OUTPUT
+          echo "BUILD_ID=$BUILD_ID" >> $GITHUB_OUTPUT
+          echo "Build ID: $BUILD_ID"
+
+  # --------------------------------------------------------
+  # Phase 2: build (Construction of regular Linux distribution RootFS)
+  # --------------------------------------------------------
+  build:
+    needs: setup
+    if: ${{ needs.setup.outputs.templates != '[]' }}
+    runs-on: ubuntu-24.04-arm
+    strategy:
+      fail-fast: false
+      matrix:
+        template: ${{ fromJson(needs.setup.outputs.templates) }}
+    steps:
+      - name: Checkout code repository
+        uses: actions/checkout@v4
+
+      - name: Compile RootFS (${{ matrix.template }})
+        run: |
+          chmod +x build_rootfs-native.sh
+          ./build_rootfs-native.sh \
+            -i "${{ matrix.template }}.Dockerfile" \
+            -v "${{ needs.setup.outputs.build_id }}" \
+            -K "${{ inputs.build_KDE }}" \
+            -P "${{ inputs.PulseAudio }}" \
+            -g "${{ inputs.enable_en_us }}" \
+            -a "${{ inputs.enable_binfmt }}" \
+            -b "${{ inputs.enable_yj }}" \
+            -c "${{ inputs.enable_mesa }}" \
+            -d "${{ inputs.enable_kfgj }}" \
+            -e "${{ inputs.enable_zip }}" \
+            -f "${{ inputs.enable_docker }}" \
+            -h "${{ inputs.enable_srf }}" \
+            -j "${{ inputs.enable_tmoe }}"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.template }}-rootfs
+          path: "*.tar.xz"
+          retention-days: 1
+
+  # --------------------------------------------------------
+  # Phase 3: release (Summary release)
+  # --------------------------------------------------------
+  release:
+    needs: [setup, build]
+    if: ${{ always() && needs.setup.result == 'success' && needs.build.result != 'failure' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code repository
+        uses: actions/checkout@v4
+        
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "*-rootfs"
+          merge-multiple: true
+          
+      - name: Organize resources
+        run: |
+          mkdir -p release_assets
+          mv *.tar.xz release_assets/
+          PA_CHOICE="${{ github.event.inputs.PulseAudio }}"
+          if [ "$PA_CHOICE" != "none" ]; then
+            cp "scripts/on_aaudio_${PA_CHOICE}.sh" release_assets/
+          fi
+          
+      - name: Create unified Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.setup.outputs.build_id }}
+          name: "Droidspaces RootFS Linux Distributions ${{ needs.setup.outputs.build_id }}"
+          files: "release_assets/*"
+          body: |
+            Droidspaces RootFS Automated Build
+            Build time : ${{ needs.setup.outputs.build_date }}
+            Build target (User specified): ${{ github.event.inputs.build_target }}
+            Build ID: ${{ needs.setup.outputs.build_id }}
+
+            Build options:
+            - **KDE-Plasma Desktop Environment**: ${{ github.event.inputs.build_KDE }}
+            - PulseAudio Audio Forwarding: ${{ github.event.inputs.PulseAudio }}
+            - Use English As The Main Language: ${{ github.event.inputs.enable_en_us }}
+            - Qualcomm Snapdragon GPU Support: ${{ github.event.inputs.enable_mesa }}
+            - Integration TMOE : ${{ github.event.inputs.enable_tmoe }}
+            - Input Method Fcitx5 Support: ${{ github.event.inputs.enable_srf }}
+            - Cross-Architecture Support: ${{ github.event.inputs.enable_binfmt }}
+            - Container Hardware And Network Recognition Support: ${{ github.event.inputs.enable_yj }}
+            - Development Tools Integration: ${{ github.event.inputs.enable_kfgj }}
+            - Compression Tools Integration: ${{ github.event.inputs.enable_zip }}
+            - Docker Integration: ${{ github.event.inputs.enable_docker }}
+            
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Send Telegram Channel Notification
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_TO }}
+          token: ${{ secrets.TELEGRAM_TOKEN }}
+          format: markdown
+          disable_web_page_preview: true
+          message: |
+            *Droidspaces RootFS Automated Build*
+            Status: Successfully Compiled
+            
+            *System Information*
+            - Target Distribution: ${{ github.event.inputs.build_target }}
+            - Build ID: ${{ needs.setup.outputs.build_id }}
+            - Timestamp: ${{ needs.setup.outputs.build_date }}
+            
+            *Environment Configuration*
+            - KDE-Plasma Desktop Environment: ${{ github.event.inputs.build_KDE }}
+            - PulseAudio Audio Forwarding: ${{ github.event.inputs.PulseAudio }}
+            - English Main Language: ${{ github.event.inputs.enable_en_us }}
+            - Snapdragon GPU Support: ${{ github.event.inputs.enable_mesa }}
+            - Cross-Architecture Support: ${{ github.event.inputs.enable_binfmt }}
+            
+            *Component Integrations*
+            - TMOE Environment: ${{ github.event.inputs.enable_tmoe }}
+            - Fcitx5 Input Method: ${{ github.event.inputs.enable_srf }}
+            - Hardware & Network Recognition: ${{ github.event.inputs.enable_yj }}
+            - Development Toolchain: ${{ github.event.inputs.enable_kfgj }}
+            - Compression Suite: ${{ github.event.inputs.enable_zip }}
+            - Docker Engine: ${{ github.event.inputs.enable_docker }}
+            
+            *Download Link*
+            [Access Release Assets](https://github.com/${{ github.repository }}/releases/tag/${{ needs.setup.outputs.build_id }})
