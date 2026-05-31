@@ -1,10 +1,10 @@
-# ðŸš€ Droidspaces RootFS Automated Build
+# Droidspaces RootFS Automated Build
 
 This project is designed to provide a fully automated cloud build workflow through GitHub Actions, delivering an out-of-the-box, highly customizable RootFS for Droidspaces.
 
 When triggering the workflow, you can freely configure the target system version, desktop environment size, and various enhancement toggles through a visual menu, making it easy to build a personalized Linux container environment for mobile devices.
 
-## âœ¨ Features
+## Features
 
 - **Multi-distro support**: Quickly build RootFS for `Debian-13`, `Ubuntu-24`, `Ubuntu-25`, and `Arch Linux`.
 - **On-demand KDE desktop customization**: Multiple KDE desktop scales are available, and you can launch the graphical environment quickly with the `on` script:
@@ -28,16 +28,16 @@ When triggering the workflow, you can freely configure the target system version
   - **Container enhancements**: Deep optimization for container recognition of underlying hardware and network environments.
   - **Productivity tools**: Optional integration of development toolchains, compression utilities, and the Docker engine.
 
-## ðŸ”¥ Quick Start
+## Quick Start
 
 1. **Fork** this project to your GitHub repository.
 2. Go to the **Actions** page and select the workflow **"Build and Release Droidspaces RootFS"** from the left panel.
 3. Click **Run workflow**, choose the desired configuration options in the popup menu, and start the workflow.
 4. Wait about 10 minutes for the build to finish, then go to the **Releases** page to download the generated RootFS archive and import it into Droidspaces.
 
-## âš ï¸ Tips and Notes
+## Tips and Notes
 
-### ðŸ–¥ï¸ System and Desktop Environment Configuration
+### System and Desktop Environment Configuration
 
 - **General requirement**: All users who use this projectâ€™s RootFS and enable the KDE desktop environment **must** enable **GPU access** in Droidspaces and configure Termux:X11 properly.
 - **Ubuntu / Debian series**: Before enabling the KDE desktop environment, it is strongly recommended to enable **`noseccomp`** in Droidspaces privileged mode settings. Otherwise, some operations inside the container may experience up to 10 seconds of lag.
@@ -45,7 +45,7 @@ When triggering the workflow, you can freely configure the target system version
   At present, conflicting packages still need to be removed manually; there is no perfect replacement solution yet, so you will need to test on your own device.
 - **Arch**: The kernel version must be 5.10 or higher.
 
-### ðŸ› ï¸ DRI3 Error Fix
+### DRI3 Error Fix
 
 If you encounter `DRI3`-related errors when starting the graphical environment, it usually means SELinux permissions are being blocked. Choose **any** of the following methods to fix it based on your situation:
 
