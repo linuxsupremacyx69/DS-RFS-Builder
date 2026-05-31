@@ -1,0 +1,116 @@
+name: Cleanup GitHub
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Enter YES to execute deletion"
+        required: true
+        default: "NO"
+
+      keep_releases:
+        description: "Number of latest Releases to keep"
+        required: true
+        default: "3"
+
+      keep_runs:
+        description: "Number of latest Actions Runs to keep"
+        required: true
+        default: "10"
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      actions: write
+
+    steps:
+      - name: Safety Check
+        run: |
+          if [ "${{ github.event.inputs.confirm }}" != "YES" ]; then
+            echo "YES not entered, aborting execution"
+            exit 1
+          fi
+
+      - name: Install jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Delete old Releases and Tags
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          KEEP_RELEASES: ${{ github.event.inputs.keep_releases }}
+          REPO: ${{ github.repository }}
+        run: |
+          echo "Fetching Releases..."
+
+          gh api repos/$REPO/releases \
+            --paginate \
+            > releases.json
+
+          COUNT=$(jq length releases.json)
+
+          echo "Total Releases: $COUNT"
+
+          if [ "$COUNT" -le "$KEEP_RELEASES" ]; then
+            echo "No need to cleanup Releases"
+          else
+            jq -r 'sort_by(.created_at) | reverse | .[] | "\(.id) \(.tag_name)"' releases.json \
+              > releases.txt
+
+            INDEX=0
+
+            while read ID TAG; do
+              INDEX=$((INDEX + 1))
+
+              if [ "$INDEX" -le "$KEEP_RELEASES" ]; then
+                echo "Keeping Release: $TAG"
+                continue
+              fi
+
+              echo "Deleting Release: $TAG"
+
+              gh api \
+                --method DELETE \
+                repos/$REPO/releases/$ID
+
+              echo "Deleting Tag: $TAG"
+
+              gh api \
+                --method DELETE \
+                repos/$REPO/git/refs/tags/$TAG \
+                || true
+
+            done < releases.txt
+          fi
+
+      - name: Delete old workflow runs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          KEEP_RUNS: ${{ github.event.inputs.keep_runs }}
+          REPO: ${{ github.repository }}
+        run: |
+          echo "Fetching workflow runs..."
+
+          gh api repos/$REPO/actions/runs \
+            --paginate \
+            > runs.json
+
+          jq -r '.workflow_runs | sort_by(.created_at) | reverse | .[] | .id' runs.json \
+            > runs.txt
+
+          INDEX=0
+
+          while read RUN_ID; do
+            INDEX=$((INDEX + 1))
+
+            if [ "$INDEX" -le "$KEEP_RUNS" ]; then
+              echo "Keeping Run: $RUN_ID"
+              continue
+            fi
+
+            echo "Deleting Run: $
+            
