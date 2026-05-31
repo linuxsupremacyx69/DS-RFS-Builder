@@ -7,7 +7,7 @@ on:
         description: 'Select The Distribution To Build'
         required: True
         type: choice
-        default: 'ArchLinux-KDE-Plasma'
+        default: 'All Distro'
         options:                           
           - 'ArchLinux-KDE-Plasma'  
           - 'Ubuntu-25-KDE-Plasma'
@@ -177,8 +177,14 @@ jobs:
         run: |
           mkdir -p release_assets
           mv *.tar.xz release_assets/
-          # Try to copy any aaudio scripts if they exist, but don't fail if they don't
-          cp scripts/on_aaudio_*.sh release_assets/ 2>/dev/null || true
+          
+          PA_CHOICE="${{ github.event.inputs.PulseAudio }}"
+          KDE_CHOICE="${{ github.event.inputs.build_KDE }}"
+          
+          # Only copy audio scripts if we are NOT doing a CLI-only build
+          if [ "$PA_CHOICE" != "none" ] && [ "$KDE_CHOICE" != "none" ]; then
+            cp scripts/on_aaudio_*.sh release_assets/ 2>/dev/null || true
+          fi
           
       - name: Create unified Release
         uses: softprops/action-gh-release@v2
