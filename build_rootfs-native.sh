@@ -68,7 +68,15 @@ set -e
 
 # 3. Core build process
 TEMP_TAR="custom-${PREFIX}-rootfs.tar"
-FINAL_NAME="${PREFIX}-Droidspaces-RootFS-${Arch}-${DATE}-${VERSION}.tar.xz"
+
+# Dynamically rename the artifact if CLI-only is selected
+if [ "$BUILD_KDE" = "none" ]; then
+    # Strip "-KDE" from the prefix and append "-CLI"
+    CLEAN_PREFIX=$(echo "$PREFIX" | sed 's/-KDE//i' | sed 's/KDE//i')
+    FINAL_NAME="${CLEAN_PREFIX}-CLI-Droidspaces-rootfs-${ARCH}-${DATE}-${VERSION}.tar.xz"
+else
+    FINAL_NAME="${PREFIX}-Droidspaces-rootfs-${ARCH}-${DATE}-${VERSION}.tar.xz"
+fi
 
 echo "Running Docker Build (Native mode)..."
 
